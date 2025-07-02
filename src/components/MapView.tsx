@@ -1,8 +1,22 @@
 import { useState } from "react";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Icon from "@/components/ui/icon";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
+// Исправляем иконки Leaflet
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
+  iconUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+});
 
 interface Location {
   id: number;
@@ -12,44 +26,70 @@ interface Location {
   rating: number;
   photos: number;
   isPrivate: boolean;
+  description: string;
 }
 
+// Локации в Брянске и области
 const mockLocations: Location[] = [
   {
     id: 1,
-    name: "Крыша БЦ Высоцкий",
+    name: "Крыша БМЗ (Брянский машиностроительный завод)",
     type: "roof",
-    coordinates: [56.8431, 60.6454],
+    coordinates: [53.2434, 34.3656],
     rating: 4.8,
     photos: 12,
     isPrivate: false,
+    description: "Отличный вид на промышленную зону города",
   },
   {
     id: 2,
-    name: "Заброшенный завод",
+    name: "Заброшенный цех завода 'Термотрон'",
     type: "abandoned",
-    coordinates: [56.8506, 60.6127],
+    coordinates: [53.2521, 34.3742],
     rating: 4.2,
     photos: 8,
     isPrivate: true,
+    description: "Старое промышленное здание с интересной архитектурой",
   },
   {
     id: 3,
-    name: "Бункер СССР",
+    name: "Бункер времен ВОВ в Партизанской слободе",
     type: "bunker",
-    coordinates: [56.8311, 60.6411],
+    coordinates: [53.2897, 34.2456],
     rating: 4.9,
     photos: 15,
     isPrivate: true,
+    description: "Исторический объект периода Великой Отечественной войны",
   },
   {
     id: 4,
-    name: "Подземный коллектор",
+    name: "Подземные ходы центра Брянска",
     type: "underground",
-    coordinates: [56.8398, 60.6358],
+    coordinates: [53.2434, 34.3656],
     rating: 4.1,
     photos: 6,
     isPrivate: false,
+    description: "Система подземных коммуникаций исторического центра",
+  },
+  {
+    id: 5,
+    name: "Крыша гостиницы 'Чернигов'",
+    type: "roof",
+    coordinates: [53.2467, 34.3741],
+    rating: 4.5,
+    photos: 9,
+    isPrivate: false,
+    description: "Панорамный вид на реку Десна и центр города",
+  },
+  {
+    id: 6,
+    name: "Заброшенная дача в Супоневе",
+    type: "abandoned",
+    coordinates: [53.2156, 34.4234],
+    rating: 3.8,
+    photos: 4,
+    isPrivate: false,
+    description: "Старое дачное строение в пригороде",
   },
 ];
 
@@ -58,6 +98,23 @@ const typeConfig = {
   bunker: { color: "bg-gray-600", icon: "Shield", label: "Бункер" },
   abandoned: { color: "bg-yellow-600", icon: "Home", label: "Заброшка" },
   underground: { color: "bg-blue-600", icon: "Zap", label: "Подземелье" },
+};
+
+// Создаем кастомные иконки для разных типов локаций
+const createCustomIcon = (type: string) => {
+  const colors = {
+    roof: "#f97316",
+    bunker: "#6b7280",
+    abandoned: "#eab308",
+    underground: "#3b82f6",
+  };
+
+  return L.divIcon({
+    html: `<div style="background-color: ${colors[type as keyof typeof colors]}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+    className: "custom-marker",
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
 };
 
 export default function MapView() {
@@ -74,41 +131,55 @@ export default function MapView() {
   return (
     <div className="h-screen flex">
       {/* Карта */}
-      <div className="flex-1 relative bg-slate-800">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <Icon name="Map" size={64} className="text-primary mx-auto" />
-            <p className="text-2xl font-semibold">Интерактивная карта</p>
-            <p className="text-muted-foreground">
-              Здесь будет отображаться карта с локациями
-            </p>
-          </div>
-        </div>
+      <div className="flex-1 relative">
+        <MapContainer
+          center={[53.2434, 34.3656]} // Центр Брянска
+          zoom={11}
+          style={{ height: "100%", width: "100%" }}
+          className="z-0"
+        >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          />
 
-        {/* Маркеры локаций */}
-        <div className="absolute inset-0">
           {filteredLocations.map((location) => (
-            <button
+            <Marker
               key={location.id}
-              className={`absolute w-8 h-8 rounded-full ${typeConfig[location.type].color} border-2 border-white shadow-lg hover:scale-110 transition-transform`}
-              style={{
-                left: `${20 + location.id * 15}%`,
-                top: `${30 + location.id * 10}%`,
+              position={location.coordinates}
+              icon={createCustomIcon(location.type)}
+              eventHandlers={{
+                click: () => setSelectedLocation(location),
               }}
-              onClick={() => setSelectedLocation(location)}
             >
-              <Icon
-                name={typeConfig[location.type].icon as any}
-                size={16}
-                className="text-white mx-auto"
-              />
-            </button>
+              <Popup>
+                <div className="min-w-[200px]">
+                  <h3 className="font-semibold text-sm mb-2">
+                    {location.name}
+                  </h3>
+                  <p className="text-xs text-gray-600 mb-2">
+                    {location.description}
+                  </p>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="flex items-center gap-1">
+                      ⭐ {location.rating}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      📸 {location.photos} фото
+                    </span>
+                    {location.isPrivate && (
+                      <span className="text-orange-600">🔒 VIP</span>
+                    )}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
           ))}
-        </div>
+        </MapContainer>
 
         {/* Детали выбранной локации */}
         {selectedLocation && (
-          <Card className="absolute bottom-4 left-4 right-4 md:right-auto md:w-80 p-4">
+          <Card className="absolute bottom-4 left-4 right-4 md:right-auto md:w-80 p-4 z-10">
             <div className="flex justify-between items-start mb-3">
               <h3 className="font-semibold text-lg">{selectedLocation.name}</h3>
               <Button
@@ -121,6 +192,10 @@ export default function MapView() {
             </div>
 
             <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {selectedLocation.description}
+              </p>
+
               <div className="flex items-center gap-2">
                 <Badge
                   variant="secondary"
